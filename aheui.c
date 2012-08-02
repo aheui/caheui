@@ -43,16 +43,10 @@ void init_space() {
 	}
 }
 
-int pop() {
-	return *(current_stack_top--);
-}
-void push_to(int stack_index, int value) {
-	*(++stack_top[stack_index]) = value;
-}
-void push(int value) {
-//	push_to(current_stack, value);
-	*(++current_stack_top) = value;
-}
+#define pop() (*(current_stack_top--))
+#define _push_to(ptr, value) *(++(ptr)) = (value);
+#define push_to(stack_index, value) _push_to(stack_top[stack_index], value)
+#define push(value) _push_to(current_stack_top, value)
 
 int fgetuc(FILE *fp) {
 	int a = fgetc(fp);
