@@ -13,18 +13,25 @@ struct opcode space[SPACE_HEIGHT][SPACE_WIDTH];
 int width, height;
 int current_stack = 0;
 int stack[28][STACK_CAPACITY];
-int stack_length[28];
+int *stack_top[28];
+int *current_stack_top;
 int value_table[] = {0, 2, 4, 4, 2, 5, 5, 3, 5, 7, 9, 9, 7, 9, 9, 8, 4, 4, 6, 2, 4, 1, 3, 4, 3, 4, 4, 3};
 int limit_step = 0;
 
+void switch_to_stack(int stack_index) {
+	stack_top[current_stack] = current_stack_top;
+	current_stack = stack_index;
+	current_stack_top = stack_top[stack_index];
+}
 void init_stack() {
 	int i, j;
 	for (i = 0; i < 28; i++) {
 		for (j = 0; j < STACK_CAPACITY; j++) {
 			stack[i][j] = 0;
 		}
-		stack_length[i] = 0;
+		stack_top[i] = &stack[i][0];
 	}
+	current_stack_top = stack_top[current_stack];
 }
 void init_space() {
 	int i, j;
@@ -36,21 +43,15 @@ void init_space() {
 	}
 }
 
-int pop_from(int stack_index) {
-	stack_length[stack_index]--;
-	int value = stack[stack_index][stack_length[stack_index]];
-	stack[stack_index][stack_length[stack_index]] = 0;
-	return value;
-}
 int pop() {
-	return pop_from(current_stack);
+	return *(current_stack_top--);
 }
 void push_to(int stack_index, int value) {
-	stack[stack_index][stack_length[stack_index]] = value;
-	stack_length[stack_index]++;
+	*(++stack_top[stack_index]) = value;
 }
 void push(int value) {
-	push_to(current_stack, value);
+//	push_to(current_stack, value);
+	*(++current_stack_top) = value;
 }
 
 int fgetuc(FILE *fp) {
@@ -163,7 +164,7 @@ int execute() {
 				a = pop();
 				push(a); push(a);
 			break;
-			case 9: current_stack = cell.value; break;
+			case 9: switch_to_stack(cell.value); break;
 			case 10: push_to(cell.value, pop()); break;
 			case 12: a = pop(); b = pop(); push((b>=a) ? 1 : 0); break;
 			case 14: if (pop() == 0) { dx=-dx; dy=-dy; } break;
