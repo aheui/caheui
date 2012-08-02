@@ -6,7 +6,10 @@
 #define SPACE_HEIGHT 100
 #define STACK_CAPACITY 100
 
-int space[SPACE_HEIGHT][SPACE_WIDTH];
+struct opcode {
+	int value, dir, op;
+};
+struct opcode space[SPACE_HEIGHT][SPACE_WIDTH];
 int width, height;
 int current_stack = 0;
 int stack[28][STACK_CAPACITY];
@@ -25,9 +28,10 @@ void init_stack() {
 }
 void init_space() {
 	int i, j;
+	struct opcode noop = {.value = 0, .dir = -1, .op = -1};
 	for (i = 0; i < SPACE_HEIGHT; i++) {
 		for (j = 0; j < SPACE_WIDTH; j++) {
-			space[i][j] = 0;
+			space[i][j] = noop;
 		}
 	}
 }
@@ -92,7 +96,13 @@ void input(FILE *fp) {
 			x = 0;
 			y++;
 		} else {
-			space[y][x] = c;
+			if (c >= 0xac00 && c <= 0xd7a3) {
+				struct opcode *cell = &space[y][x];
+				c -= 0xac00;
+				cell->value = c % 28;
+				cell->dir = c / 28 % 21;
+				cell->op = c / 28 / 21;
+			}
 			x++;
 		}
 	}
@@ -106,75 +116,70 @@ int execute() {
 	int step = 0;
 
 	while (limit_step == 0 || step < limit_step) {
-		int c = space[y][x];
-		if (c >= 0xac00 && c <= 0xd7a3) {
-			int value;
-			c -= 0xac00;
-			value = c % 28;
-			switch (c / 28 % 21) {
-				case 0:  dx=1;  dy=0;  break;
-				case 2:  dx=2;  dy=0;  break;
-				case 4:  dx=-1; dy=0;  break;
-				case 6:  dx=-2; dy=0;  break;
-				case 8:  dx=0;  dy=-1; break;
-				case 12: dx=0;  dy=-2; break;
-				case 13: dx=0;  dy=1;  break;
-				case 17: dx=0;  dy=2;  break;
+		struct opcode cell = space[y][x];
+		switch (cell.dir) {
+			case 0:  dx=1;  dy=0;  break;
+			case 2:  dx=2;  dy=0;  break;
+			case 4:  dx=-1; dy=0;  break;
+			case 6:  dx=-2; dy=0;  break;
+			case 8:  dx=0;  dy=-1; break;
+			case 12: dx=0;  dy=-2; break;
+			case 13: dx=0;  dy=1;  break;
+			case 17: dx=0;  dy=2;  break;
 
-				case 18: dy=-dy;         break;
-				case 19: dx=-dx; dy=-dy; break;
-				case 20: dx=-dx;         break;
-			}
-			switch (c / 28 / 21) {
-				case 2: a = pop(); b = pop(); push(b/a); break;
-				case 3: a = pop(); b = pop(); push(b+a); break;
-				case 4: a = pop(); b = pop(); push(b*a); break;
-				case 5: a = pop(); b = pop(); push(b%a); break;
-				case 6:
-					if (value == 21) {
-						printf("%d", pop());
-					} else if (value == 27) {
-						print_uchar(pop());
-					} else {
-						pop();
-					}
-				break;
-				case 7:
-					if (value == 21) {
-						int n;
-						printf("Input number: ");
-						scanf("%d", &n);
-						push(n);
-					} else if (value == 27) {
-						printf("Input character: ");
-						push(fgetuc(stdin)); // TODO: length >= 2
-					} else {
-						push(value_table[value]);
-					}
-				break;
-				case 8:
-					// TODO: queue
-					a = pop();
-					push(a); push(a);
-				break;
-				case 9: current_stack = value; break;
-				case 10: push_to(value, pop()); break;
-				case 12: a = pop(); b = pop(); push((b>=a) ? 1 : 0); break;
-				case 14: if (pop() == 0) { dx=-dx; dy=-dy; } break;
-				case 16: a = pop(); b = pop(); push(b-a); break;
-				case 17:
-					if (value == 21) {
-						a = stack[21][0];
-						stack[21][0] = stack[21][1];
-						stack[21][1] = a;
-					} else if (value == 27) {
-						// nop; do nothing
-					} else {
-						a = pop(); b = pop(); push(a); push(b);
-					}
-				break;
-				case 18: return step; break;  
-			}
+			case 18: dy=-dy;		 break;
+			case 19: dx=-dx; dy=-dy; break;
+			case 20: dx=-dx;		 break;
+		}
+		switch (cell.op) {
+			case 2: a = pop(); b = pop(); push(b/a); break;
+			case 3: a = pop(); b = pop(); push(b+a); break;
+			case 4: a = pop(); b = pop(); push(b*a); break;
+			case 5: a = pop(); b = pop(); push(b%a); break;
+			case 6:
+				if (cell.value == 21) {
+					printf("%d", pop());
+				} else if (cell.value == 27) {
+					print_uchar(pop());
+				} else {
+					pop();
+				}
+			break;
+			case 7:
+				if (cell.value == 21) {
+					int n;
+					printf("Input number: ");
+					scanf("%d", &n);
+					push(n);
+				} else if (cell.value == 27) {
+					printf("Input character: ");
+					push(fgetuc(stdin)); // TODO: length >= 2
+				} else {
+					push(value_table[cell.value]);
+				}
+			break;
+			case 8:
+				// TODO: queue
+				a = pop();
+				push(a); push(a);
+			break;
+			case 9: current_stack = cell.value; break;
+			case 10: push_to(cell.value, pop()); break;
+			case 12: a = pop(); b = pop(); push((b>=a) ? 1 : 0); break;
+			case 14: if (pop() == 0) { dx=-dx; dy=-dy; } break;
+			case 16: a = pop(); b = pop(); push(b-a); break;
+			case 17:
+				if (cell.value == 21) {
+					a = stack[21][0];
+					stack[21][0] = stack[21][1];
+					stack[21][1] = a;
+				} else if (cell.value == 27) {
+					// nop; do nothing
+				} else {
+					a = pop(); b = pop(); push(a); push(b);
+				}
+			break;
+			case 18: return step; break;  
 		}
 		x += dx;
 		y += dy;
