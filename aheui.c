@@ -126,7 +126,11 @@ int execute() {
 	int dx = 1, dy = 0;
 	int step = 0;
 
+#ifdef DEBUG
 	while (limit_step == 0 || step < limit_step) {
+#else
+	while (1) {
+#endif
 		int a, b;
 		struct opcode cell = space[y][x];
 		int dir = cell.dir;
@@ -206,7 +210,9 @@ int execute() {
 		if (x < 0) x = width - 1;
 		if (x >= width && dx != 0) x = 0;
 
+#ifdef DEBUG
 		step++;
+#endif
 	}
 	if (limit_step != 0) {
 		fprintf(stderr, "\naborting;");
@@ -227,6 +233,9 @@ int main(int argc, char *argv[]) {
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-l")) {
 			limit_step = atoi(argv[++i]);
+#ifndef DEBUG
+			fprintf(stderr, "Warning: instruction limiting is only supported in debug mode.\n");
+#endif
 		} else {
 			path = argv[i];
 		}
@@ -238,7 +247,12 @@ int main(int argc, char *argv[]) {
 	fclose(fp);
 
 	init_stack();
-	fprintf(stderr, "\n%d instructions were executed.\n", execute());
+#ifdef DEBUG
+	int step = execute();
+	fprintf(stderr, "\n%d instructions were executed.\n", step);
+#else
+	execute();
+#endif
 
 	return 0;
 }
