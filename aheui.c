@@ -9,10 +9,15 @@
 #define FLAG_FETCH_A (1<<0)
 #define FLAG_FETCH_B (1<<1)
 #define FLAG_FETCH_AB (FLAG_FETCH_A | FLAG_FETCH_B)
+#define FLAG_DIR_SET (1<<2)
+#define FLAG_DIR_FLIPX (1<<3)
+#define FLAG_DIR_FLIPY (1<<4)
+#define FLAG_DIR_FLIPXY (FLAG_DIR_FLIPX | FLAG_DIR_FLIPY)
 
 struct opcode {
-    int value, dir, op;
+    int value, op;
     int flags;
+    struct dir { int dx, dy; } dir;
 };
 struct opcode space[SPACE_HEIGHT][SPACE_WIDTH];
 int width, height;
@@ -40,7 +45,7 @@ void init_stack() {
 }
 void init_space() {
     int i, j;
-    struct opcode noop = {.value = 0, .dir = -1, .op = -1, .flags = 0};
+    struct opcode noop = {.value = 0, .dir = {0, 0}, .op = -1, .flags = 0};
     for (i = 0; i < SPACE_HEIGHT; i++) {
         for (j = 0; j < SPACE_WIDTH; j++) {
             space[i][j] = noop;
@@ -97,10 +102,26 @@ void input(FILE *fp) {
             y++;
         } else {
             if (c >= 0xac00 && c <= 0xd7a3) {
+                int dx, dy;
                 struct opcode *cell = &space[y][x];
                 c -= 0xac00;
                 cell->value = c % 28;
-                cell->dir = c / 28 % 21;
+                switch (c / 28 % 21) {
+                    case 0:  dx=1;  dy=0;  cell->flags |= FLAG_DIR_SET; break;
+                    case 2:  dx=2;  dy=0;  cell->flags |= FLAG_DIR_SET; break;
+                    case 4:  dx=-1; dy=0;  cell->flags |= FLAG_DIR_SET; break;
+                    case 6:  dx=-2; dy=0;  cell->flags |= FLAG_DIR_SET; break;
+                    case 8:  dx=0;  dy=-1; cell->flags |= FLAG_DIR_SET; break;
+                    case 12: dx=0;  dy=-2; cell->flags |= FLAG_DIR_SET; break;
+                    case 13: dx=0;  dy=1;  cell->flags |= FLAG_DIR_SET; break;
+                    case 17: dx=0;  dy=2;  cell->flags |= FLAG_DIR_SET; break;
+                    
+                    case 18: cell->flags |= FLAG_DIR_FLIPY; break;
+                    case 19: cell->flags |= FLAG_DIR_FLIPXY; break;
+                    case 20: cell->flags |= FLAG_DIR_FLIPX; break;
+                }
+                cell->dir.dx = dx;
+                cell->dir.dy = dy;
                 cell->op = c / 28 / 21;
                 switch (cell->op) {
                     case 2: case 3: case 4: case 5: case 12: case 16:
@@ -123,7 +144,7 @@ void input(FILE *fp) {
 
 int execute() {
     int x = 0, y = 0;
-    int dx = 1, dy = 0;
+    struct dir dir;
     int step = 0;
 
 #ifdef DEBUG
@@ -133,20 +154,11 @@ int execute() {
 #endif
         int a, b;
         struct opcode cell = space[y][x];
-        int dir = cell.dir;
-        switch (dir) {
-            case 0:  dx=1;  dy=0;  break;
-            case 2:  dx=2;  dy=0;  break;
-            case 4:  dx=-1; dy=0;  break;
-            case 6:  dx=-2; dy=0;  break;
-            case 8:  dx=0;  dy=-1; break;
-            case 12: dx=0;  dy=-2; break;
-            case 13: dx=0;  dy=1;  break;
-            case 17: dx=0;  dy=2;  break;
-
-            case 18: dy=-dy;         break;
-            case 19: dx=-dx; dy=-dy; break;
-            case 20: dx=-dx;         break;
+        if (cell.flags & FLAG_DIR_SET) dir = cell.dir;
+        else {
+            // FLAG_DIR_SET and FLAG_DIR_FLIP* are mutually exclusive
+            if (cell.flags & FLAG_DIR_FLIPX) dir.dx = -dir.dx;
+            if (cell.flags & FLAG_DIR_FLIPY) dir.dy = -dir.dy;
         }
         // fetch operands
         if (cell.flags & FLAG_FETCH_A) {
@@ -186,7 +198,7 @@ int execute() {
             case 9: switch_to_stack(cell.value); break;
             case 10: push_to(cell.value, a); break;
             case 12: push((b>=a) ? 1 : 0); break;
-            case 14: if (a == 0) { dx=-dx; dy=-dy; } break;
+            case 14: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case 16: push(b-a); break;
             case 17:
                 if (cell.value == 21) {
@@ -201,14 +213,14 @@ int execute() {
             break;
             case 18: return step; break;  
         }
-        x += dx;
-        y += dy;
+        x += dir.dx;
+        y += dir.dy;
 
         if (y < 0) y = height - 1;
         if (y >= height) y = 0;
 
         if (x < 0) x = width - 1;
-        if (x >= width && dx != 0) x = 0;
+        if (x >= width && dir.dx != 0) x = 0;
 
 #ifdef DEBUG
         step++;
