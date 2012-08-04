@@ -14,8 +14,35 @@
 #define FLAG_DIR_FLIPY (1<<4)
 #define FLAG_DIR_FLIPXY (FLAG_DIR_FLIPX | FLAG_DIR_FLIPY)
 
+enum op {
+    OP_DIV = 2,
+    OP_ADD = 3,
+    OP_MUL = 4,
+    OP_MOD = 5,
+//    OP_PRINT = 6,
+//    OP_INPUT = 7,
+    OP_DUP = 8,
+    OP_SWITCH = 9,
+    OP_COPY = 10,
+    OP_CMP = 12,
+    OP_BRANCH = 14,
+    OP_SUB = 16,
+    OP_SWAP = 17,
+    OP_EXIT = 18,
+    
+    OP_NOP = -100,
+    OP_PRINT_NUM,
+    OP_PRINT_CHAR,
+    OP_POP,
+    OP_INPUT_NUM,
+    OP_INPUT_CHAR,
+    OP_PUSH,
+    OP_SWAP_QUEUE = -8,
+};
+
 struct opcode {
-    int value, op;
+    int value;
+    enum op op;
     int flags;
     struct dir { int dx, dy; } dir;
 };
@@ -45,7 +72,7 @@ void init_stack() {
 }
 void init_space() {
     int i, j;
-    struct opcode noop = {.value = 0, .dir = {0, 0}, .op = -1, .flags = 0};
+    struct opcode noop = {.value = 0, .dir = {0, 0}, .op = OP_NOP, .flags = 0};
     for (i = 0; i < SPACE_HEIGHT; i++) {
         for (j = 0; j < SPACE_WIDTH; j++) {
             space[i][j] = noop;
@@ -102,7 +129,7 @@ void input(FILE *fp) {
             y++;
         } else {
             if (c >= 0xac00 && c <= 0xd7a3) {
-                int dx, dy;
+                int dx, dy, op;
                 struct opcode *cell = &space[y][x];
                 c -= 0xac00;
                 cell->value = c % 28;
@@ -122,18 +149,36 @@ void input(FILE *fp) {
                 }
                 cell->dir.dx = dx;
                 cell->dir.dy = dy;
-                cell->op = c / 28 / 21;
+                op = c / 28 / 21;
+                if (op == 6) {
+                    if (cell->value == 21)
+                        op = OP_PRINT_NUM;
+                    else if (cell->value == 27)
+                        op = OP_PRINT_CHAR;
+                    else
+                        op = OP_POP;
+                } else if (op == 7) {
+                    if (cell->value == 21)
+                        op = OP_INPUT_NUM;
+                    else if (cell->value == 27)
+                        op = OP_INPUT_CHAR;
+                    else
+                        op = OP_PUSH;
+                } else if (op == 17) {
+                    if (cell->value == 21)
+                        op = OP_SWAP_QUEUE;
+                    else if (cell->value == 27)
+                        op = OP_NOP;
+                }
+                cell->op = op;
                 switch (cell->op) {
-                    case 2: case 3: case 4: case 5: case 12: case 16:
+                    case OP_DIV: case OP_ADD: case OP_MUL: case OP_MOD: case OP_CMP: case OP_SUB: case OP_SWAP:
                         cell->flags |= FLAG_FETCH_AB;
                         break;
-                    case 6: case 8: case 10: case 14:
+                    case OP_PRINT_NUM: case OP_PRINT_CHAR: case OP_POP: case OP_DUP: case OP_COPY: case OP_BRANCH:
                         cell->flags |= FLAG_FETCH_A;
                         break;
-                    case 17:
-                        if (cell->value != 21 && cell->value != 27)
-                            cell->flags |= FLAG_FETCH_AB;
-                        break;
+                    default: break;
                 }
             }
             x++;
@@ -167,51 +212,40 @@ int execute() {
         }
         // execute
         switch (cell.op) {
-            case 2: push(b/a); break;
-            case 3: push(b+a); break;
-            case 4: push(b*a); break;
-            case 5: push(b%a); break;
-            case 6:
-                if (cell.value == 21) {
-                    printf("%d", a);
-                } else if (cell.value == 27) {
-                    print_uchar(a);
-                }
+            case OP_NOP: break;
+            case OP_DIV: push(b/a); break;
+            case OP_ADD: push(b+a); break;
+            case OP_MUL: push(b*a); break;
+            case OP_MOD: push(b%a); break;
+            case OP_PRINT_NUM: printf("%d", a); break;
+            case OP_PRINT_CHAR: print_uchar(a); break;
+            case OP_POP: break;
+            case OP_INPUT_NUM:
+                printf("Input number: ");
+                scanf("%d", &a);
+                push(a);
             break;
-            case 7:
-                if (cell.value == 21) {
-                    int n;
-                    printf("Input number: ");
-                    scanf("%d", &n);
-                    push(n);
-                } else if (cell.value == 27) {
-                    printf("Input character: ");
-                    push(fgetuc(stdin)); // TODO: length >= 2
-                } else {
-                    push(value_table[cell.value]);
-                }
-            break;
-            case 8:
+            case OP_INPUT_CHAR:
+                printf("Input character: ");
+                push(fgetuc(stdin)); // TODO: length >= 2
+                break;
+            case OP_PUSH: push(value_table[cell.value]); break;
+            case OP_DUP:
                 // TODO: queue
                 push(a); push(a);
             break;
-            case 9: switch_to_stack(cell.value); break;
-            case 10: push_to(cell.value, a); break;
-            case 12: push((b>=a) ? 1 : 0); break;
-            case 14: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
-            case 16: push(b-a); break;
-            case 17:
-                if (cell.value == 21) {
-                    a = stack[21][0];
-                    stack[21][0] = stack[21][1];
-                    stack[21][1] = a;
-                } else if (cell.value == 27) {
-                    // nop; do nothing
-                } else {
-                    push(a); push(b);
-                }
+            case OP_SWITCH: switch_to_stack(cell.value); break;
+            case OP_COPY: push_to(cell.value, a); break;
+            case OP_CMP: push((b>=a) ? 1 : 0); break;
+            case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
+            case OP_SUB: push(b-a); break;
+            case OP_SWAP_QUEUE:
+                a = stack[21][0];
+                stack[21][0] = stack[21][1];
+                stack[21][1] = a;
             break;
-            case 18: return step; break;  
+            case OP_SWAP: push(a); push(b); break;
+            case OP_EXIT: return step; break;
         }
         x += dir.dx;
         y += dir.dy;
