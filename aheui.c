@@ -17,29 +17,34 @@
 #define FLAG_DIR_FLIPY (1<<4)
 #define FLAG_DIR_FLIPXY (FLAG_DIR_FLIPX | FLAG_DIR_FLIPY)
 
+#define DEF_OP(op, code) OP_##op = code
+#define DEF_OP_(op) OP_##op
+#define OPS \
+    DEF_OP(DIV, 2), \
+    DEF_OP(ADD, 3), \
+    DEF_OP(MUL, 4), \
+    DEF_OP(MOD, 5), \
+    DEF_OP(DUP, 8), \
+    DEF_OP(SWITCH, 9), \
+    DEF_OP(MOVE, 10), \
+    DEF_OP(CMP, 12), \
+    DEF_OP(BRANCH, 14), \
+    DEF_OP(SUB, 16), \
+    DEF_OP(SWAP, 17), \
+    DEF_OP(EXIT, 18), \
+    \
+    DEF_OP(NOP, 100), \
+    DEF_OP_(PRINT_NUM), \
+    DEF_OP_(PRINT_CHAR), \
+    DEF_OP_(POP), \
+    DEF_OP_(INPUT_NUM), \
+    DEF_OP_(INPUT_CHAR), \
+    DEF_OP_(PUSH)
+
 enum op {
-    OP_DIV = 2,
-    OP_ADD = 3,
-    OP_MUL = 4,
-    OP_MOD = 5,
-//    OP_PRINT = 6,
-//    OP_INPUT = 7,
-    OP_DUP = 8,
-    OP_SWITCH = 9,
-    OP_MOVE = 10,
-    OP_CMP = 12,
-    OP_BRANCH = 14,
-    OP_SUB = 16,
-    OP_SWAP = 17,
-    OP_EXIT = 18,
+    OPS,
     
-    OP_NOP = -100,
-    OP_PRINT_NUM,
-    OP_PRINT_CHAR,
-    OP_POP,
-    OP_INPUT_NUM,
-    OP_INPUT_CHAR,
-    OP_PUSH,
+    MAX_OP,
 };
 
 struct opcode {
@@ -195,10 +200,34 @@ void input(FILE *fp) {
     height = y;
 }
 
+#define DIRECT_THREADING
+#ifndef DIRECT_THREADING
+#define BEGIN_DISPATCH switch (cell.op) {
+#define END_DISPATCH }
+#define CASE_OP(op) case OP_##op
+#define END_OP break
+#else
+#define BEGIN_DISPATCH
+#define END_DISPATCH
+#define CASE_OP(op) label_##op
+#define END_OP goto next
+#endif
+
 int execute() {
     int x = 0, y = 0;
     struct dir dir;
     int step = 0;
+    
+#ifdef DIRECT_THREADING
+#undef DEF_OP
+#undef DEF_OP_
+#define DEF_OP_(op) dispatch[OP_##op] = &&label_##op
+#define DEF_OP(op, code) DEF_OP_(op)
+    void *dispatch[MAX_OP];
+    for (int i = 0; i < MAX_OP; i++)
+        dispatch[i] = &&next;
+    OPS;
+#endif
 
 #ifdef DEBUG
     while (limit_step == 0 || step < limit_step) {
@@ -239,27 +268,32 @@ int execute() {
                 queue_front += cell.flags & MASK_REQ_ELEMS;
             }
         }
+        
+#ifdef DIRECT_THREADING
+        goto *dispatch[cell.op];
+#endif
+        
         // execute
-        switch (cell.op) {
-            case OP_NOP: break;
-            case OP_DIV: push(b/a); break;
-            case OP_ADD: push(b+a); break;
-            case OP_MUL: push(b*a); break;
-            case OP_MOD: push(b%a); break;
-            case OP_PRINT_NUM: printf("%d", a); break;
-            case OP_PRINT_CHAR: print_uchar(a); break;
-            case OP_POP: break;
-            case OP_INPUT_NUM:
+        BEGIN_DISPATCH
+//            CASE_OP(NOP): END_OP;
+            CASE_OP(DIV): push(b/a); END_OP;
+            CASE_OP(ADD): push(b+a); END_OP;
+            CASE_OP(MUL): push(b*a); END_OP;
+            CASE_OP(MOD): push(b%a); END_OP;
+            CASE_OP(PRINT_NUM): printf("%d", a); END_OP;
+            CASE_OP(PRINT_CHAR): print_uchar(a); END_OP;
+//            CASE_OP(POP): END_OP;
+            CASE_OP(INPUT_NUM):
                 printf("Input number: ");
                 scanf("%d", &a);
                 push(a);
-            break;
-            case OP_INPUT_CHAR:
+            END_OP;
+            CASE_OP(INPUT_CHAR):
                 printf("Input character: ");
                 push(fgetuc(stdin)); // TODO: length >= 2
-                break;
-            case OP_PUSH: push(cell.value); break;
-            case OP_DUP:
+                END_OP;
+            CASE_OP(PUSH): push(cell.value); END_OP;
+            CASE_OP(DUP):
                 if (current_stack != 21) {
                     push(a);
                 } else {
@@ -267,19 +301,21 @@ int execute() {
                         memmove(queue_front + 1, queue_front, current_stack_top - queue_front);
                     *(--queue_front) = a;
                 }
-            break;
-            case OP_SWITCH: switch_to_stack(cell.value); break;
-            case OP_MOVE: push_to(cell.value, a); break;
-            case OP_CMP: push((b>=a) ? 1 : 0); break;
-            case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
-            case OP_SUB: push(b-a); break;
-            case OP_SWAP: push(a); push(b); break;
-            case OP_EXIT: return step; break;
-        }
+            END_OP;
+            CASE_OP(SWITCH): switch_to_stack(cell.value); END_OP;
+            CASE_OP(MOVE): push_to(cell.value, a); END_OP;
+            CASE_OP(CMP): push((b>=a) ? 1 : 0); END_OP;
+            CASE_OP(BRANCH): if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } END_OP;
+            CASE_OP(SUB): push(b-a); END_OP;
+            CASE_OP(SWAP): push(a); push(b); END_OP;
+            CASE_OP(EXIT): return step; END_OP;
+        END_DISPATCH
         goto next;
     underflow:
         dir.dx = -dir.dx;
         dir.dy = -dir.dy;
+    CASE_OP(NOP):
+    CASE_OP(POP):
     next:
         x += dir.dx;
         y += dir.dy;
