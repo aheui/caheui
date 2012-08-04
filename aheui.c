@@ -206,41 +206,32 @@ int execute() {
     while (1) {
 #endif
         int a, b;
-        struct opcode cell = space[y][x];
-        if (cell.flags & FLAG_DIR_SET) dir = cell.dir;
+        struct opcode *cell = &space[y][x];
+        if (cell->flags & FLAG_DIR_SET) dir = cell->dir;
         else {
             // FLAG_DIR_SET and FLAG_DIR_FLIP* are mutually exclusive
-            if (cell.flags & FLAG_DIR_FLIPX) dir.dx = -dir.dx;
-            if (cell.flags & FLAG_DIR_FLIPY) dir.dy = -dir.dy;
+            if (cell->flags & FLAG_DIR_FLIPX) dir.dx = -dir.dx;
+            if (cell->flags & FLAG_DIR_FLIPY) dir.dy = -dir.dy;
         }
-        // check underflow
-        if (current_stack != 21) {
-            if (stacksize() < (cell.flags & MASK_REQ_ELEMS))
-                goto underflow;
-        } else {
-            if (queuesize() < (cell.flags & MASK_REQ_ELEMS))
-                goto underflow;
-        }
-        // fetch operands
-        if ((cell.flags & MASK_REQ_ELEMS) != 0) {
+        if ((cell->flags & MASK_REQ_ELEMS) != 0) {
             if (current_stack != 21) {
+                if (stacksize() < (cell->flags & MASK_REQ_ELEMS))
+                    goto underflow;
                 a = *current_stack_top;
-                if (cell.flags & FLAG_FETCH_B) b = *(current_stack_top - 1);
+                if (cell->flags & FLAG_FETCH_B) b = *(current_stack_top - 1);
+                if (cell->flags & FLAG_FETCH_REMOVE)
+                    current_stack_top -= cell->flags & MASK_REQ_ELEMS;
             } else {
+                if (queuesize() < (cell->flags & MASK_REQ_ELEMS))
+                    goto underflow;
                 a = *(queue_front + 1);
-                if (cell.flags & FLAG_FETCH_B) b = *(queue_front + 2);
-            }
-        }
-        // pop
-        if (cell.flags & FLAG_FETCH_REMOVE) {
-            if (current_stack != 21) {
-                current_stack_top -= cell.flags & MASK_REQ_ELEMS;
-            } else {
-                queue_front += cell.flags & MASK_REQ_ELEMS;
+                if (cell->flags & FLAG_FETCH_B) b = *(queue_front + 2);
+                if (cell->flags & FLAG_FETCH_REMOVE)
+                    queue_front += cell->flags & MASK_REQ_ELEMS;
             }
         }
         // execute
-        switch (cell.op) {
+        switch (cell->op) {
             case OP_NOP: break;
             case OP_DIV: push(b/a); break;
             case OP_ADD: push(b+a); break;
@@ -258,7 +249,7 @@ int execute() {
                 printf("Input character: ");
                 push(fgetuc(stdin)); // TODO: length >= 2
                 break;
-            case OP_PUSH: push(cell.value); break;
+            case OP_PUSH: push(cell->value); break;
             case OP_DUP:
                 if (current_stack != 21) {
                     push(a);
@@ -268,8 +259,8 @@ int execute() {
                     *(--queue_front) = a;
                 }
             break;
-            case OP_SWITCH: switch_to_stack(cell.value); break;
-            case OP_MOVE: push_to(cell.value, a); break;
+            case OP_SWITCH: switch_to_stack(cell->value); break;
+            case OP_MOVE: push_to(cell->value, a); break;
             case OP_CMP: push((b>=a) ? 1 : 0); break;
             case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case OP_SUB: push(b-a); break;
