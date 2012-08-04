@@ -6,9 +6,12 @@
 #define SPACE_HEIGHT 100
 #define STACK_CAPACITY 100
 
+#define MASK_REQ_ELEMS (1<<1 | 1<<0)
 #define FLAG_FETCH_A (1<<0)
 #define FLAG_FETCH_B (1<<1)
-#define FLAG_FETCH_AB (FLAG_FETCH_A | FLAG_FETCH_B)
+#define FLAG_FETCH_AB FLAG_FETCH_B
+#define FLAG_FETCH_REMOVE (1<<5)
+
 #define FLAG_DIR_SET (1<<2)
 #define FLAG_DIR_FLIPX (1<<3)
 #define FLAG_DIR_FLIPY (1<<4)
@@ -23,7 +26,7 @@ enum op {
 //    OP_INPUT = 7,
     OP_DUP = 8,
     OP_SWITCH = 9,
-    OP_COPY = 10,
+    OP_MOVE = 10,
     OP_CMP = 12,
     OP_BRANCH = 14,
     OP_SUB = 16,
@@ -37,7 +40,6 @@ enum op {
     OP_INPUT_NUM,
     OP_INPUT_CHAR,
     OP_PUSH,
-    OP_SWAP_QUEUE,
 };
 
 struct opcode {
@@ -51,6 +53,7 @@ int width, height;
 int current_stack = 0;
 int stack[28][STACK_CAPACITY];
 int *stack_top[28];
+int *queue_front;
 int *current_stack_top;
 int value_table[] = {0, 2, 4, 4, 2, 5, 5, 3, 5, 7, 9, 9, 7, 9, 9, 8, 4, 4, 6, 2, 4, 1, 3, 4, 3, 4, 4, 3};
 int limit_step = 0;
@@ -69,6 +72,7 @@ void init_stack() {
         stack_top[i] = &stack[i][0];
     }
     current_stack_top = stack_top[current_stack];
+    queue_front = stack_top[21];
 }
 void init_space() {
     int i, j;
@@ -80,10 +84,11 @@ void init_space() {
     }
 }
 
-#define pop() (*(current_stack_top--))
 #define _push_to(ptr, value) *(++(ptr)) = (value);
 #define push_to(stack_index, value) _push_to(stack_top[stack_index], value)
 #define push(value) _push_to(current_stack_top, value)
+#define stacksize() (current_stack_top - &stack[current_stack][0])
+#define queuesize() (current_stack_top - queue_front)
 
 int fgetuc(FILE *fp) {
     int a = fgetc(fp);
@@ -166,19 +171,20 @@ void input(FILE *fp) {
                         op = OP_PUSH;
                         cell->value = value_table[cell->value];
                     }
-                } else if (op == 17) {
-                    if (cell->value == 21)
-                        op = OP_SWAP_QUEUE;
-                    else if (cell->value == 27)
-                        op = OP_NOP;
                 }
                 cell->op = op;
                 switch (cell->op) {
                     case OP_DIV: case OP_ADD: case OP_MUL: case OP_MOD: case OP_CMP: case OP_SUB: case OP_SWAP:
                         cell->flags |= FLAG_FETCH_AB;
+                        cell->flags |= FLAG_FETCH_REMOVE;
                         break;
-                    case OP_PRINT_NUM: case OP_PRINT_CHAR: case OP_POP: case OP_DUP: case OP_COPY: case OP_BRANCH:
+                    case OP_PRINT_NUM: case OP_PRINT_CHAR: case OP_POP: case OP_MOVE: case OP_BRANCH:
                         cell->flags |= FLAG_FETCH_A;
+                        cell->flags |= FLAG_FETCH_REMOVE;
+                        break;
+                    case OP_DUP:
+                        cell->flags |= FLAG_FETCH_A;
+                        // non-destructive
                         break;
                     default: break;
                 }
@@ -207,10 +213,31 @@ int execute() {
             if (cell.flags & FLAG_DIR_FLIPX) dir.dx = -dir.dx;
             if (cell.flags & FLAG_DIR_FLIPY) dir.dy = -dir.dy;
         }
+        // check underflow
+        if (current_stack != 21) {
+            if (stacksize() < (cell.flags & MASK_REQ_ELEMS))
+                goto underflow;
+        } else {
+            if (queuesize() < (cell.flags & MASK_REQ_ELEMS))
+                goto underflow;
+        }
         // fetch operands
-        if (cell.flags & FLAG_FETCH_A) {
-            a = pop();
-            if (cell.flags & FLAG_FETCH_B) b = pop();
+        if ((cell.flags & MASK_REQ_ELEMS) != 0) {
+            if (current_stack != 21) {
+                a = *current_stack_top;
+                if (cell.flags & FLAG_FETCH_B) b = *(current_stack_top - 1);
+            } else {
+                a = *(queue_front + 1);
+                if (cell.flags & FLAG_FETCH_B) b = *(queue_front + 2);
+            }
+        }
+        // pop
+        if (cell.flags & FLAG_FETCH_REMOVE) {
+            if (current_stack != 21) {
+                current_stack_top -= cell.flags & MASK_REQ_ELEMS;
+            } else {
+                queue_front += cell.flags & MASK_REQ_ELEMS;
+            }
         }
         // execute
         switch (cell.op) {
@@ -233,22 +260,27 @@ int execute() {
                 break;
             case OP_PUSH: push(cell.value); break;
             case OP_DUP:
-                // TODO: queue
-                push(a); push(a);
+                if (current_stack != 21) {
+                    push(a);
+                } else {
+                    if (queue_front == &stack[21][0]) // no space before front
+                        memmove(queue_front + 1, queue_front, current_stack_top - queue_front);
+                    *(--queue_front) = a;
+                }
             break;
             case OP_SWITCH: switch_to_stack(cell.value); break;
-            case OP_COPY: push_to(cell.value, a); break;
+            case OP_MOVE: push_to(cell.value, a); break;
             case OP_CMP: push((b>=a) ? 1 : 0); break;
             case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case OP_SUB: push(b-a); break;
-            case OP_SWAP_QUEUE:
-                a = stack[21][0];
-                stack[21][0] = stack[21][1];
-                stack[21][1] = a;
-            break;
             case OP_SWAP: push(a); push(b); break;
             case OP_EXIT: return step; break;
         }
+        goto next;
+    underflow:
+        dir.dx = -dir.dx;
+        dir.dy = -dir.dy;
+    next:
         x += dir.dx;
         y += dir.dy;
 
