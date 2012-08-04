@@ -37,7 +37,7 @@ enum op {
     OP_INPUT_NUM,
     OP_INPUT_CHAR,
     OP_PUSH,
-    OP_SWAP_QUEUE = -8,
+    OP_SWAP_QUEUE,
 };
 
 struct opcode {
@@ -162,8 +162,10 @@ void input(FILE *fp) {
                         op = OP_INPUT_NUM;
                     else if (cell->value == 27)
                         op = OP_INPUT_CHAR;
-                    else
+                    else {
                         op = OP_PUSH;
+                        cell->value = value_table[cell->value];
+                    }
                 } else if (op == 17) {
                     if (cell->value == 21)
                         op = OP_SWAP_QUEUE;
@@ -229,7 +231,7 @@ int execute() {
                 printf("Input character: ");
                 push(fgetuc(stdin)); // TODO: length >= 2
                 break;
-            case OP_PUSH: push(value_table[cell.value]); break;
+            case OP_PUSH: push(cell.value); break;
             case OP_DUP:
                 // TODO: queue
                 push(a); push(a);
@@ -254,7 +256,7 @@ int execute() {
         if (y >= height) y = 0;
 
         if (x < 0) x = width - 1;
-        if (x >= width && dir.dx != 0) x = 0;
+        if (x >= width) x = 0;
 
 #ifdef DEBUG
         step++;
