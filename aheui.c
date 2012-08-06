@@ -4,7 +4,7 @@
 
 #define SPACE_WIDTH 100
 #define SPACE_HEIGHT 100
-#define STACK_CAPACITY 100
+#define STACK_DEFAULT_SIZE 100
 
 #define MASK_REQ_ELEMS (1<<1 | 1<<0)
 #define FLAG_FETCH_A (1<<0)
@@ -51,7 +51,8 @@ struct opcode {
 struct opcode space[SPACE_HEIGHT][SPACE_WIDTH];
 int width, height;
 int current_stack = 0;
-int stack[28][STACK_CAPACITY];
+int stack_size = STACK_DEFAULT_SIZE;
+int *stack[28];
 int *stack_top[28];
 int *queue_front;
 int *current_stack_top;
@@ -66,7 +67,8 @@ void switch_to_stack(int stack_index) {
 void init_stack() {
     int i, j;
     for (i = 0; i < 28; i++) {
-        for (j = 0; j < STACK_CAPACITY; j++) {
+        stack[i] = malloc(sizeof(int) * stack_size);
+        for (j = 0; j < stack_size; j++) {
             stack[i][j] = 0;
         }
         stack_top[i] = &stack[i][0];
@@ -297,7 +299,7 @@ int main(int argc, char *argv[]) {
     char *path = NULL;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s [-l limit] filename\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-l limit] [-s stack size] filename\n", argv[0]);
         return 1;
     }
 
@@ -307,6 +309,8 @@ int main(int argc, char *argv[]) {
 #ifndef DEBUG
             fprintf(stderr, "Warning: instruction limiting is only supported in debug mode.\n");
 #endif
+        } else if (!strcmp(argv[i], "-s")) {
+            stack_size = atoi(argv[++i]);
         } else {
             path = argv[i];
         }
