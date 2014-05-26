@@ -11,6 +11,7 @@
 #define FLAG_FETCH_B (1<<1)
 #define FLAG_FETCH_AB FLAG_FETCH_B
 #define FLAG_FETCH_REMOVE (1<<5)
+#define FLAG_FETCH_SWAP (1<<6)
 
 #define FLAG_DIR_SET (1<<2)
 #define FLAG_DIR_FLIPX (1<<3)
@@ -176,10 +177,14 @@ void input(FILE *fp) {
                 }
                 cell->op = op;
                 switch (cell->op) {
-                    case OP_DIV: case OP_ADD: case OP_MUL: case OP_MOD: case OP_CMP: case OP_SUB: case OP_SWAP:
+                    case OP_DIV: case OP_ADD: case OP_MUL: case OP_MOD: case OP_CMP: case OP_SUB:
                         cell->flags |= FLAG_FETCH_AB;
                         cell->flags |= FLAG_FETCH_REMOVE;
                         break;
+                    case OP_SWAP:
+                    	cell->flags |= FLAG_FETCH_AB;
+                    	cell->flags |= FLAG_FETCH_SWAP;
+                    	break;
                     case OP_PRINT_NUM: case OP_PRINT_CHAR: case OP_POP: case OP_MOVE: case OP_BRANCH:
                         cell->flags |= FLAG_FETCH_A;
                         cell->flags |= FLAG_FETCH_REMOVE;
@@ -229,6 +234,10 @@ int execute() {
                 if (cell->flags & FLAG_FETCH_B) b = *(current_stack_top - 1);
                 if (cell->flags & FLAG_FETCH_REMOVE)
                     current_stack_top -= cell->flags & MASK_REQ_ELEMS;
+                if (cell->flags & FLAG_FETCH_SWAP) {
+                	*current_stack_top = b;
+                	*(current_stack_top - 1) = a;
+                }
             } else {
                 if (queuesize() < (cell->flags & MASK_REQ_ELEMS))
                     goto underflow;
@@ -236,6 +245,10 @@ int execute() {
                 if (cell->flags & FLAG_FETCH_B) b = *(queue_front + 2);
                 if (cell->flags & FLAG_FETCH_REMOVE)
                     queue_front += cell->flags & MASK_REQ_ELEMS;
+                if (cell->flags & FLAG_FETCH_SWAP) {
+                	*(queue_front + 1) = b;
+                	*(queue_front + 2) = a;
+                }
             }
         }
         // execute
@@ -272,7 +285,7 @@ int execute() {
             case OP_CMP: push((b>=a) ? 1 : 0); break;
             case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case OP_SUB: push(b-a); break;
-            case OP_SWAP: push(a); push(b); break;
+            case OP_SWAP: break;
             case OP_EXIT: return step; break;
         }
         goto next;
