@@ -199,7 +199,7 @@ void input(FILE *fp) {
 
 int execute() {
     int x = 0, y = 0;
-    struct dir dir;
+    struct dir dir = {0, 1};
     int step = 0;
 
 #ifdef DEBUG
@@ -209,11 +209,17 @@ int execute() {
 #endif
         int a, b;
         struct opcode *cell = &space[y][x];
-        if (cell->flags & FLAG_DIR_SET) dir = cell->dir;
+        if (cell->flags & FLAG_DIR_SET) {
+            dir = cell->dir;
+        }
         else {
             // FLAG_DIR_SET and FLAG_DIR_FLIP* are mutually exclusive
-            if (cell->flags & FLAG_DIR_FLIPX) dir.dx = -dir.dx;
-            if (cell->flags & FLAG_DIR_FLIPY) dir.dy = -dir.dy;
+            if (cell->flags & FLAG_DIR_FLIPX) {
+                dir.dx = -dir.dx;
+            }
+            if (cell->flags & FLAG_DIR_FLIPY) {
+                 dir.dy = -dir.dy;
+            }
         }
         if ((cell->flags & MASK_REQ_ELEMS) != 0) {
             if (current_stack != 21) {
