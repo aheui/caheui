@@ -59,6 +59,7 @@ int *queue_front;
 int *current_stack_top;
 int value_table[] = {0, 2, 4, 4, 2, 5, 5, 3, 5, 7, 9, 9, 7, 9, 9, 8, 4, 4, 6, 2, 4, 1, 3, 4, 3, 4, 4, 3};
 int limit_step = 0;
+int quiet_mode = 0;
 
 void switch_to_stack(int stack_index) {
     stack_top[current_stack] = current_stack_top;
@@ -262,12 +263,14 @@ int execute() {
             case OP_PRINT_CHAR: print_uchar(a); break;
             case OP_POP: break;
             case OP_INPUT_NUM:
-                printf("Input number: ");
+                if (!quiet_mode)
+                    printf("Input number: ");
                 scanf("%d", &a);
                 push(a);
             break;
             case OP_INPUT_CHAR:
-                printf("Input character: ");
+                if (!quiet_mode)
+                    printf("Input character: ");
                 push(fgetuc(stdin)); // TODO: length >= 2
                 break;
             case OP_PUSH: push(cell->value); break;
@@ -318,7 +321,7 @@ int main(int argc, char *argv[]) {
     char *path = NULL;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s [-l limit] [-s stack size] filename\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-q] [-l limit] [-s stack size] filename\n", argv[0]);
         return 1;
     }
 
@@ -330,6 +333,8 @@ int main(int argc, char *argv[]) {
 #endif
         } else if (!strcmp(argv[i], "-s")) {
             stack_size = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-q")) {
+            quiet_mode = 1;
         } else {
             path = argv[i];
         }
