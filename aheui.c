@@ -203,7 +203,7 @@ void input(FILE *fp) {
     height = y;
 }
 
-int execute() {
+int execute(int *exitcode) {
     int x = 0, y = 0;
     struct dir dir = {0, 1};
     int step = 0;
@@ -295,7 +295,15 @@ int execute() {
             case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case OP_SUB: push(b-a); break;
             case OP_SWAP: break;
-            case OP_EXIT: return step; break;
+            case OP_EXIT:
+                if (current_stack != 21) {
+                    if (stacksize() >= 1)
+                        *exitcode = *current_stack_top;
+                } else {
+                    if (queuesize() >= 1)
+                        *exitcode = *(queue_front + 1);
+                }
+                return step;
         }
         goto next;
     underflow:
@@ -325,6 +333,7 @@ int main(int argc, char *argv[]) {
     FILE *fp;
     int i;
     char *path = NULL;
+    int exitcode = 0;
 
     if (argc < 2) {
         fprintf(stderr, "Usage: %s [-q] [-l limit] [-s stack size] filename\n", argv[0]);
@@ -353,11 +362,11 @@ int main(int argc, char *argv[]) {
 
     init_stack();
 #ifdef DEBUG
-    int step = execute();
+    int step = execute(&exitcode);
     fprintf(stderr, "\n%d instructions were executed.\n", step);
 #else
-    execute();
+    execute(&exitcode);
 #endif
 
-    return 0;
+    return exitcode;
 }
