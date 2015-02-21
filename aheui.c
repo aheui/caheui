@@ -264,13 +264,13 @@ int execute(int *exitcode) {
             case OP_POP: break;
             case OP_INPUT_NUM:
                 if (!quiet_mode)
-                    printf("Input number: ");
+                    fprintf(stderr, "Input number: ");
                 scanf("%d", &a);
                 push(a);
             break;
             case OP_INPUT_CHAR:
                 if (!quiet_mode)
-                    printf("Input character: ");
+                    fprintf(stderr, "Input character: ");
                 push(fgetuc(stdin)); // TODO: length >= 2
                 break;
             case OP_PUSH: push(cell->value); break;
