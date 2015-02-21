@@ -284,7 +284,13 @@ int execute() {
                 }
             break;
             case OP_SWITCH: switch_to_stack(cell->value); break;
-            case OP_MOVE: push_to(cell->value, a); break;
+            case OP_MOVE:
+                if (cell->value == current_stack) {
+                    push(a);
+                } else {
+                    push_to(cell->value, a);
+                }
+            break;
             case OP_CMP: push((b>=a) ? 1 : 0); break;
             case OP_BRANCH: if (a == 0) { dir.dx = -dir.dx; dir.dy = -dir.dy; } break;
             case OP_SUB: push(b-a); break;
