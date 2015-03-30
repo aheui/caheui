@@ -33,7 +33,7 @@ enum op {
     OP_SUB = 16,
     OP_SWAP = 17,
     OP_EXIT = 18,
-    
+
     OP_NOP = -100,
     OP_PRINT_NUM,
     OP_PRINT_CHAR,
@@ -151,7 +151,7 @@ void input(FILE *fp) {
                     case 12: dx=0;  dy=-2; cell->flags |= FLAG_DIR_SET; break;
                     case 13: dx=0;  dy=1;  cell->flags |= FLAG_DIR_SET; break;
                     case 17: dx=0;  dy=2;  cell->flags |= FLAG_DIR_SET; break;
-                    
+
                     case 18: cell->flags |= FLAG_DIR_FLIPY; break;
                     case 19: cell->flags |= FLAG_DIR_FLIPXY; break;
                     case 20: cell->flags |= FLAG_DIR_FLIPX; break;
@@ -183,9 +183,9 @@ void input(FILE *fp) {
                         cell->flags |= FLAG_FETCH_REMOVE;
                         break;
                     case OP_SWAP:
-                    	cell->flags |= FLAG_FETCH_AB;
-                    	cell->flags |= FLAG_FETCH_SWAP;
-                    	break;
+                        cell->flags |= FLAG_FETCH_AB;
+                        cell->flags |= FLAG_FETCH_SWAP;
+                        break;
                     case OP_PRINT_NUM: case OP_PRINT_CHAR: case OP_POP: case OP_MOVE: case OP_BRANCH:
                         cell->flags |= FLAG_FETCH_A;
                         cell->flags |= FLAG_FETCH_REMOVE;
@@ -236,8 +236,8 @@ int execute(int *exitcode) {
                 if (cell->flags & FLAG_FETCH_REMOVE)
                     current_stack_top -= cell->flags & MASK_REQ_ELEMS;
                 if (cell->flags & FLAG_FETCH_SWAP) {
-                	*current_stack_top = b;
-                	*(current_stack_top - 1) = a;
+                    *current_stack_top = b;
+                    *(current_stack_top - 1) = a;
                 }
             } else {
                 if (queuesize() < (cell->flags & MASK_REQ_ELEMS))
@@ -247,8 +247,8 @@ int execute(int *exitcode) {
                 if (cell->flags & FLAG_FETCH_REMOVE)
                     queue_front += cell->flags & MASK_REQ_ELEMS;
                 if (cell->flags & FLAG_FETCH_SWAP) {
-                	*(queue_front + 1) = b;
-                	*(queue_front + 2) = a;
+                    *(queue_front + 1) = b;
+                    *(queue_front + 2) = a;
                 }
             }
         }
