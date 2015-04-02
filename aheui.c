@@ -280,7 +280,8 @@ int execute(int *exitcode) {
                 } else {
                     if (queue_front == &stack[21][0]) // no space before front
                         memmove(queue_front + 1, queue_front, current_stack_top - queue_front);
-                    *(--queue_front) = a;
+                    *queue_front = a;
+                    queue_front--;
                 }
             break;
             case OP_SWITCH: switch_to_stack(cell->value); break;
