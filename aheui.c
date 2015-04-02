@@ -333,6 +333,7 @@ int main(int argc, char *argv[]) {
     FILE *fp;
     int i;
     char *path = NULL;
+    char *quiet = NULL;
     int exitcode = 0;
 
     if (argc < 2) {
@@ -353,6 +354,11 @@ int main(int argc, char *argv[]) {
         } else {
             path = argv[i];
         }
+    }
+
+    quiet = getenv("AHEUI_QUIET");
+    if (quiet != NULL && !strcmp(quiet, "1")) {
+        quiet_mode = 1;
     }
 
     init_space();

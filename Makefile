@@ -12,7 +12,7 @@ install: aheui
 
 test: aheui
 	if [ -e snippets ]; then cd snippets && git pull; else git clone https://github.com/aheui/snippets; fi
-	cd snippets && AHEUI="`pwd`/../aheui -q" bash test.sh standard
+	cd snippets && AHEUI="`pwd`/../aheui" AHEUI_QUIET=1 bash test.sh standard
 
 dist-clean:
 	rm $(PREFIX)/bin/caheui
