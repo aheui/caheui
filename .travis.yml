@@ -1,0 +1,8 @@
+language: c
+compiler:
+  - clang
+  - gcc
+# command to run tests
+script:
+  - "make && make test"
+sudo: false
