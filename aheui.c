@@ -109,17 +109,25 @@ int fgetuc(FILE *fp) {
         return -1;
     }
 }
+
 void print_uchar(int ch) {
     if (ch < 0x80) {
         putchar(ch);
     } else if (ch < 0x0800) {
         putchar(0xc0 | (ch >> 6));
-        putchar(0x80 | (ch & 0x3f));
+        putchar(0x80 | ((ch >> 0) & 0x3f));
+    } else if (ch < 0x10000) {
+        putchar(0xe0 | (ch >> 12));
+        putchar(0x80 | ((ch >> 6) & 0x3f));
+        putchar(0x80 | ((ch >> 0) & 0x3f));
+    } else if (ch < 0x110000) {
+        putchar(0xf0 | (ch >> 18));
+        putchar(0x80 | ((ch >> 12) & 0x3f));
+        putchar(0x80 | ((ch >> 6) & 0x3f));
+        putchar(0x80 | ((ch >> 0) & 0x3f));
     } else {
-        if (ch < 0x10000) {
-            putchar(0xe0 | (ch >> 12));
-            putchar(0x80 | ((ch >> 6) & 0x3f));
-            putchar(0x80 | (ch & 0x3f));
+        if (!quiet_mode) {
+            fprintf(stderr, "Print error. U+%x is not a unicode code point.\n", ch);
         }
     }
 }
